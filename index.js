@@ -13,7 +13,6 @@ async function getDockerHostnames(){
     containers.pop()
     let promises = containers.map(async containerID => {
         let json = JSON.parse(await new Promise(resolve => exec(`docker inspect ${containerID}`, (error, stdout) => resolve(stdout))))
-        let hostname = json[0].Config.Hostname
         let aliases = json[0].NetworkSettings?.Networks?.development?.Aliases || []
         aliases.map(alias => hosts[alias] = {
             domain: `^${alias}*`,
