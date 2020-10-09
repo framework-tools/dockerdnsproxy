@@ -16,13 +16,14 @@ async function getDockerHostnames(){
         let hostname = json[0].Config.Hostname
         let aliases = json[0].NetworkSettings?.Networks?.development?.Aliases || []
         aliases.map(alias => hosts[alias] = {
-            domain: `^${hostname}*`,
+            domain: `^${alias}*`,
             records: [
                 { type: 'A', address: '127.0.0.1', ttl: 600 }
             ]
         })
     })
     await Promise.all(promises)
+    console.log(hosts)
 }
 
 await getDockerHostnames()
@@ -52,8 +53,6 @@ server.on('error', (err, buff, req, res) => console.error(err.stack))
 server.on('socketError', (err, socket) => console.error(err))
 
 server.on('request', async function handleRequest(request, response) {
-    console.log('request from', request.address.address, 'for', request.question[0].name)
-
     let f = []; // array of functions
 
     request.question.forEach(question => {
