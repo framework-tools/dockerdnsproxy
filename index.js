@@ -1,36 +1,39 @@
 import dns from 'native-dns'
 import { exec } from 'child_process'
 
-let server = dns.createServer()
-let authority = { address: '8.8.8.8', port: 53, type: 'udp' }
+const { createServer, Request } = dns
+const authority = { address: '8.8.8.8', port: 53, type: 'udp' }
+const hosts = {}
 
-let hosts = {}
+let server = createServer()
+
+function command (cmd) {
+    return new Promise((resolve, reject) => {
+        exec(cmd, (err, stdout, stderr) => stdout ? resolve(stdout) : reject(stderr ?? err))
+    })
+}
 
 async function getDockerHostnames(){
-    let containersText = await new Promise(resolve => exec('docker ps -a --format "table {{.ID}}"', (error, stdout) => resolve(stdout)))
+    let containersText = await command('docker ps --format "{{.ID}}"')
     let containers = containersText.split('\n')
-    containers.shift()
     containers.pop()
-    let promises = containers.map(async containerID => {
+    await containers.map(async containerID => {
         let json = JSON.parse(await new Promise(resolve => exec(`docker inspect ${containerID}`, (error, stdout) => resolve(stdout))))
         let aliases = json[0].NetworkSettings?.Networks?.development?.Aliases || []
         aliases.map(domain => hosts[domain] = {
             domain,
             records: [
-                { type: 'A', address: '127.0.0.1', ttl: 600 }
+                { type: 'A', address: '127.0.0.1', ttl: 100 }
             ]
         })
     })
-    await Promise.all(promises)
 }
 
 await getDockerHostnames()
 setInterval(getDockerHostnames, 8000)
 
 function proxy(question, response, cb) {
-    console.log('proxying', question.name)
-
-    var request = dns.Request({
+    var request = Request({
         question: question, // forwarding the question
         server: authority,  // this is the DNS server we are asking
         timeout: 1000
@@ -38,38 +41,35 @@ function proxy(question, response, cb) {
 
     // when we get answers, append them to the response
     request.on('message', (err, msg) => {
-        msg.answer.forEach(a => response.answer.push(a))
+        msg.answer.map(a => response.answer.push(a))
     });
 
     request.on('end', cb)
     request.send()
 }
 
-server.on('listening', () => console.log('server listening on', server.address()))
 server.on('close', () => console.log('server closed', server.address()))
 server.on('error', (err, buff, req, res) => console.error(err.stack))
 server.on('socketError', (err, socket) => console.error(err))
-
 server.on('request', async function handleRequest(request, response) {
-    let f = []; // array of functions
-
-    request.question.forEach((question) => {
-        let entry = Object.values(hosts).filter(({domain}) => domain === question.name);
-        if (entry.length) {
-            entry[0].records.forEach(record => {
-                record.name = question.name;
-                record.ttl = record.ttl || 600;
-                response.answer.push(dns[record.type](record));
-            })
-        } else {
-            f.push(new Promise(cb => proxy(question, response, cb)))
-        }
-    })
-
-    // do the proxying in parallel
-    // when done, respond to the request by sending the response
-    await Promise.all(f)
-    response.send()
+    try {
+        await Promise.all(request.question.map(question => {
+            let entry = Object.values(hosts).find(r => new RegExp(r.domain, 'i').test(question.name))
+            if (entry) {
+                entry.records.map(record => {
+                    record.name = question.name;
+                    record.ttl = record.ttl ?? 600;
+                    return response.answer.push(dns[record.type](record));
+                })
+            } else {
+                return new Promise(resolve => proxy(question, response, resolve))
+            }
+        }))
+    
+        response.send()
+    } catch (error) {
+        console.log(error)
+    }
 });
 
 server.serve(53, '127.0.0.1');
