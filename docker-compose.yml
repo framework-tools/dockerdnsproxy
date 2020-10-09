@@ -5,7 +5,8 @@ services:
         volumes:
             - ./nginx.conf:/etc/nginx/nginx.conf
         ports:
-            - 80:80
+            - "80:80"
+            - "33440:33440"
         networks:
             - development
 networks:
