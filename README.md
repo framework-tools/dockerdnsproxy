@@ -5,12 +5,16 @@ Run docker containers on port 80 through a proxy with docker aliases
 
 1. Add 127.0.0.1 to your DNS
 
+**MacOS**:
+
 ```sh
 networksetup -setdnsservers Wi-Fi 127.0.0.1 8.8.8.8
 ```
 `8.8.8.8` is Google's Public DNS Server
 
-2. Install nodemon, docker & docker-compose
+2. Install nodemon globally
+3. Install docker
+4. Run `npm i`
 
 
 ## Starting proxy + dns server
