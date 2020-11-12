@@ -16,6 +16,20 @@ networksetup -setdnsservers Wi-Fi 127.0.0.1 8.8.8.8
 3. Install docker
 4. Run `npm i`
 
+**Windows**
+As administrator:
+
+```sh
+netsh interface show config
+```
+Locate the network connection for which you want the DNS server changed (eg: `WiFi`).
+
+```sh
+netsh interface ipv4 add dns "WiFi" 127.0.0.1 index=1
+netsh interface ipv4 add dns "WiFi" 8.8.8.8 index=2
+ipconfig /flushdns
+```
+
 
 ## Starting proxy + dns server
 ```sh
